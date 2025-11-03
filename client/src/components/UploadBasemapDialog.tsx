@@ -1,32 +1,88 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Upload } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface UploadBasemapDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onUpload?: (data: any) => void;
 }
 
-export default function UploadBasemapDialog({ open, onOpenChange, onUpload }: UploadBasemapDialogProps) {
+export default function UploadBasemapDialog({ open, onOpenChange }: UploadBasemapDialogProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+
+  const uploadMutation = useMutation({
+    mutationFn: async () => {
+      if (!file) throw new Error("No file selected");
+      
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('name', name);
+      if (description) formData.append('description', description);
+      formData.append('width', dimensions.width.toString());
+      formData.append('height', dimensions.height.toString());
+
+      const response = await apiRequest('/api/basemaps', {
+        method: 'POST',
+        body: formData,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/basemaps'] });
+      toast({
+        title: 'Success',
+        description: 'Basemap uploaded successfully',
+      });
+      handleClose();
+    },
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'Failed to upload basemap',
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleFileChange = (selectedFile: File | null) => {
+    if (selectedFile && selectedFile.type.startsWith('image/')) {
+      setFile(selectedFile);
+      
+      const img = new Image();
+      img.onload = () => {
+        setDimensions({ width: img.width, height: img.height });
+      };
+      img.src = URL.createObjectURL(selectedFile);
+    }
+  };
 
   const handleUpload = () => {
-    onUpload?.({ name, description, file });
+    uploadMutation.mutate();
+  };
+
+  const handleClose = () => {
     setName("");
     setDescription("");
     setFile(null);
+    setDimensions({ width: 0, height: 0 });
+    if (fileInputRef.current) fileInputRef.current.value = "";
     onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-md" data-testid="dialog-upload-basemap">
         <DialogHeader>
           <DialogTitle data-testid="text-dialog-title">Upload New Basemap</DialogTitle>
@@ -57,27 +113,38 @@ export default function UploadBasemapDialog({ open, onOpenChange, onUpload }: Up
 
           <div>
             <Label htmlFor="basemap-file" data-testid="label-file">Image File *</Label>
-            <div className="mt-2 flex items-center justify-center border-2 border-dashed rounded-md p-6 hover-elevate cursor-pointer">
+            <div 
+              className="mt-2 flex items-center justify-center border-2 border-dashed rounded-md p-6 hover-elevate cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+            >
               <div className="text-center">
                 <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
                 <p className="text-sm text-muted-foreground">
                   {file ? file.name : "Choose file or drag and drop"}
                 </p>
-                <p className="text-xs text-muted-foreground mt-1">PNG, JPG up to 10MB</p>
+                {file && dimensions.width > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {dimensions.width} × {dimensions.height}px
+                  </p>
+                )}
+                {!file && (
+                  <p className="text-xs text-muted-foreground mt-1">PNG, JPG up to 10MB</p>
+                )}
               </div>
-              <input
-                type="file"
-                id="basemap-file"
-                className="hidden"
-                accept="image/*"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                data-testid="input-file"
-              />
             </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              id="basemap-file"
+              className="hidden"
+              accept="image/*"
+              onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
+              data-testid="input-file"
+            />
             <Button
               variant="outline"
               className="w-full mt-2"
-              onClick={() => document.getElementById('basemap-file')?.click()}
+              onClick={() => fileInputRef.current?.click()}
               data-testid="button-choose-file"
             >
               Choose File
@@ -88,17 +155,17 @@ export default function UploadBasemapDialog({ open, onOpenChange, onUpload }: Up
         <DialogFooter className="gap-2">
           <Button
             variant="outline"
-            onClick={() => onOpenChange(false)}
+            onClick={handleClose}
             data-testid="button-cancel"
           >
             Cancel
           </Button>
           <Button
             onClick={handleUpload}
-            disabled={!name || !file}
+            disabled={!name || !file || uploadMutation.isPending}
             data-testid="button-upload"
           >
-            Upload
+            {uploadMutation.isPending ? 'Uploading...' : 'Upload'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -7,6 +7,35 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search, Upload, Plus, Edit, Trash2, MapPin } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+
+interface Basemap {
+  id: string;
+  name: string;
+  description?: string;
+  imageUrl: string;
+  width: number;
+  height: number;
+}
+
+interface POI {
+  id: string;
+  name: string;
+  categoryId: string;
+  category: {
+    id: string;
+    name: string;
+    color: string;
+  };
+}
+
+interface Category {
+  id: string;
+  name: string;
+  color: string;
+}
 
 interface AdminTabsProps {
   onUploadBasemap?: () => void;
@@ -24,30 +53,58 @@ export default function AdminTabs({
   const [searchBasemaps, setSearchBasemaps] = useState("");
   const [searchPOIs, setSearchPOIs] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const { toast } = useToast();
 
-  // todo: remove mock functionality
-  const mockBasemaps = [
-    { id: "1", name: "Carrieworld", size: "2000x1500px", date: "6/12/2025" },
-    { id: "2", name: "Hotel District Map", description: "International Drive hotel and dining district overview", size: "900x600px", date: "6/12/2025" },
-    { id: "3", name: "Convention Center Floor Plan", size: "900x700px", date: "6/12/2025" },
-  ];
+  const { data: basemaps = [], isLoading: loadingBasemaps } = useQuery<Basemap[]>({
+    queryKey: ['/api/basemaps'],
+  });
 
-  const mockPOIs = [
-    { id: "1", name: "Castle Hotel, Autograph Collection", category: "Hotels" },
-    { id: "2", name: "Convention Center", category: "Entertainment" },
-    { id: "3", name: "Courtyard by Marriot I-Drive / Convention Center", category: "Hotels" },
-    { id: "4", name: "Days Inn by Wyndham Orlando Convention Center", category: "Hotels" },
-    { id: "5", name: "Doubletree by Hilton Orlando at Seaworld", category: "Hotels" },
-  ];
+  const { data: pois = [], isLoading: loadingPOIs } = useQuery<POI[]>({
+    queryKey: ['/api/pois'],
+  });
 
-  const mockCategories = [
-    { id: "1", name: "Hotels", color: "blue" },
-    { id: "2", name: "Restaurants", color: "red" },
-    { id: "3", name: "Entertainment", color: "purple" },
-    { id: "4", name: "Shopping", color: "green" },
-    { id: "5", name: "Theme Parks", color: "orange" },
-    { id: "6", name: "Convention Center", color: "pink" },
-  ];
+  const { data: categories = [], isLoading: loadingCategories } = useQuery<Category[]>({
+    queryKey: ['/api/categories'],
+  });
+
+  const deleteBasemapMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest(`/api/basemaps/${id}`, { method: 'DELETE' });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/basemaps'] });
+      toast({ title: 'Success', description: 'Basemap deleted successfully' });
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to delete basemap', variant: 'destructive' });
+    },
+  });
+
+  const deletePOIMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest(`/api/pois/${id}`, { method: 'DELETE' });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/pois'] });
+      toast({ title: 'Success', description: 'POI deleted successfully' });
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to delete POI', variant: 'destructive' });
+    },
+  });
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await apiRequest(`/api/categories/${id}`, { method: 'DELETE' });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/categories'] });
+      toast({ title: 'Success', description: 'Category deleted successfully' });
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to delete category', variant: 'destructive' });
+    },
+  });
 
   const categoryColors: Record<string, string> = {
     blue: "bg-blue-500",
@@ -58,9 +115,13 @@ export default function AdminTabs({
     pink: "bg-pink-500",
   };
 
-  const filteredPOIs = mockPOIs.filter(poi => {
+  const filteredBasemaps = basemaps.filter(basemap =>
+    basemap.name.toLowerCase().includes(searchBasemaps.toLowerCase())
+  );
+
+  const filteredPOIs = pois.filter(poi => {
     const matchesSearch = poi.name.toLowerCase().includes(searchPOIs.toLowerCase());
-    const matchesCategory = categoryFilter === "all" || poi.category === categoryFilter;
+    const matchesCategory = categoryFilter === "all" || poi.category.name === categoryFilter;
     return matchesSearch && matchesCategory;
   });
 
@@ -109,43 +170,52 @@ export default function AdminTabs({
         </div>
 
         <ScrollArea className="h-[calc(100vh-16rem)]">
-          <div className="space-y-3">
-            {mockBasemaps.map((basemap) => (
-              <Card key={basemap.id} className="p-4" data-testid={`card-basemap-${basemap.id}`}>
-                <div className="flex gap-4">
-                  <div className="w-24 h-24 bg-muted rounded-md flex-shrink-0"></div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold mb-1">{basemap.name}</h3>
-                    {basemap.description && (
-                      <p className="text-sm text-muted-foreground mb-2">{basemap.description}</p>
-                    )}
-                    <div className="flex gap-2 text-xs text-muted-foreground">
-                      <span>{basemap.size}</span>
-                      <span>•</span>
-                      <span>{basemap.date}</span>
+          {loadingBasemaps ? (
+            <p className="text-center py-12 text-muted-foreground">Loading basemaps...</p>
+          ) : filteredBasemaps.length === 0 ? (
+            <p className="text-center py-12 text-muted-foreground">
+              {basemaps.length === 0 ? 'No basemaps yet. Upload one to get started!' : 'No basemaps found.'}
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {filteredBasemaps.map((basemap) => (
+                <Card key={basemap.id} className="p-4" data-testid={`card-basemap-${basemap.id}`}>
+                  <div className="flex gap-4">
+                    <div className="w-24 h-24 bg-muted rounded-md flex-shrink-0 overflow-hidden">
+                      <img src={basemap.imageUrl} alt={basemap.name} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold mb-1">{basemap.name}</h3>
+                      {basemap.description && (
+                        <p className="text-sm text-muted-foreground mb-2">{basemap.description}</p>
+                      )}
+                      <div className="flex gap-2 text-xs text-muted-foreground">
+                        <span>{basemap.width}x{basemap.height}px</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => onEditBasemap?.(basemap.id)}
+                        data-testid={`button-edit-${basemap.id}`}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => deleteBasemapMutation.mutate(basemap.id)}
+                        data-testid={`button-delete-${basemap.id}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => onEditBasemap?.(basemap.id)}
-                      data-testid={`button-edit-${basemap.id}`}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      data-testid={`button-delete-${basemap.id}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </ScrollArea>
       </TabsContent>
 
@@ -167,7 +237,7 @@ export default function AdminTabs({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Categories</SelectItem>
-              {mockCategories.map((cat) => (
+              {categories.map((cat) => (
                 <SelectItem key={cat.id} value={cat.name}>
                   {cat.name}
                 </SelectItem>
@@ -181,35 +251,37 @@ export default function AdminTabs({
         </div>
 
         <ScrollArea className="h-[calc(100vh-16rem)]">
-          <div className="space-y-2">
-            {filteredPOIs.map((poi) => (
-              <Card key={poi.id} className="p-4 flex items-center gap-3" data-testid={`card-poi-${poi.id}`}>
-                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
-                  <MapPin className="w-4 h-4 text-white" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium">{poi.name}</p>
-                  <p className="text-sm text-muted-foreground">{poi.category}</p>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    data-testid={`button-edit-${poi.id}`}
-                  >
-                    <Edit className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    data-testid={`button-delete-${poi.id}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </Card>
-            ))}
-          </div>
+          {loadingPOIs ? (
+            <p className="text-center py-12 text-muted-foreground">Loading POIs...</p>
+          ) : filteredPOIs.length === 0 ? (
+            <p className="text-center py-12 text-muted-foreground">
+              {pois.length === 0 ? 'No POIs yet. Add one to get started!' : 'No POIs found.'}
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {filteredPOIs.map((poi) => (
+                <Card key={poi.id} className="p-4 flex items-center gap-3" data-testid={`card-poi-${poi.id}`}>
+                  <div className={`w-8 h-8 ${categoryColors[poi.category.color] || 'bg-blue-500'} rounded-full flex items-center justify-center flex-shrink-0`}>
+                    <MapPin className="w-4 h-4 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium">{poi.name}</p>
+                    <p className="text-sm text-muted-foreground">{poi.category.name}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      onClick={() => deletePOIMutation.mutate(poi.id)}
+                      data-testid={`button-delete-${poi.id}`}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </ScrollArea>
       </TabsContent>
 
@@ -222,34 +294,34 @@ export default function AdminTabs({
         </div>
 
         <ScrollArea className="h-[calc(100vh-16rem)]">
-          <div className="grid grid-cols-2 gap-3">
-            {mockCategories.map((category) => (
-              <Card key={category.id} className="p-4" data-testid={`card-category-${category.id}`}>
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 ${categoryColors[category.color]} rounded-md flex-shrink-0`}></div>
-                  <div className="flex-1">
-                    <p className="font-medium">{category.name}</p>
+          {loadingCategories ? (
+            <p className="text-center py-12 text-muted-foreground">Loading categories...</p>
+          ) : categories.length === 0 ? (
+            <p className="text-center py-12 text-muted-foreground">No categories yet. Add one to get started!</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              {categories.map((category) => (
+                <Card key={category.id} className="p-4" data-testid={`card-category-${category.id}`}>
+                  <div className="flex items-center gap-3">
+                    <div className={`w-10 h-10 ${categoryColors[category.color] || 'bg-gray-500'} rounded-md flex-shrink-0`}></div>
+                    <div className="flex-1">
+                      <p className="font-medium">{category.name}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => deleteCategoryMutation.mutate(category.id)}
+                        data-testid={`button-delete-${category.id}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      data-testid={`button-edit-${category.id}`}
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      data-testid={`button-delete-${category.id}`}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </ScrollArea>
       </TabsContent>
     </Tabs>

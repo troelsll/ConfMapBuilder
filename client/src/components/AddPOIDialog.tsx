@@ -4,36 +4,69 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+
+interface Category {
+  id: string;
+  name: string;
+  color: string;
+}
 
 interface AddPOIDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAdd?: (data: any) => void;
 }
 
-export default function AddPOIDialog({ open, onOpenChange, onAdd }: AddPOIDialogProps) {
+export default function AddPOIDialog({ open, onOpenChange }: AddPOIDialogProps) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
+  const { toast } = useToast();
 
-  // todo: remove mock functionality
-  const categories = [
-    "Carrie's Faves",
-    "Entertainment",
-    "Hotels",
-    "Restaurants",
-    "Shopping",
-    "Theme Parks",
-  ];
+  const { data: categories = [] } = useQuery<Category[]>({
+    queryKey: ['/api/categories'],
+    enabled: open,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: { name: string; categoryId: string }) => {
+      const response = await apiRequest('/api/pois', {
+        method: 'POST',
+        body: JSON.stringify(data),
+        headers: { 'Content-Type': 'application/json' },
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/pois'] });
+      toast({
+        title: 'Success',
+        description: 'POI created successfully',
+      });
+      handleClose();
+    },
+    onError: () => {
+      toast({
+        title: 'Error',
+        description: 'Failed to create POI',
+        variant: 'destructive',
+      });
+    },
+  });
 
   const handleAdd = () => {
-    onAdd?.({ name, category });
+    createMutation.mutate({ name, categoryId: category });
+  };
+
+  const handleClose = () => {
     setName("");
     setCategory("");
     onOpenChange(false);
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-md" data-testid="dialog-add-poi">
         <DialogHeader>
           <DialogTitle data-testid="text-dialog-title">Add New POI</DialogTitle>
@@ -59,8 +92,8 @@ export default function AddPOIDialog({ open, onOpenChange, onAdd }: AddPOIDialog
               </SelectTrigger>
               <SelectContent>
                 {categories.map((cat) => (
-                  <SelectItem key={cat} value={cat} data-testid={`option-${cat}`}>
-                    {cat}
+                  <SelectItem key={cat.id} value={cat.id} data-testid={`option-${cat.name}`}>
+                    {cat.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -71,17 +104,17 @@ export default function AddPOIDialog({ open, onOpenChange, onAdd }: AddPOIDialog
         <DialogFooter className="gap-2">
           <Button
             variant="outline"
-            onClick={() => onOpenChange(false)}
+            onClick={handleClose}
             data-testid="button-cancel"
           >
             Cancel
           </Button>
           <Button
             onClick={handleAdd}
-            disabled={!name || !category}
+            disabled={!name || !category || createMutation.isPending}
             data-testid="button-create-poi"
           >
-            Create POI
+            {createMutation.isPending ? 'Creating...' : 'Create POI'}
           </Button>
         </DialogFooter>
       </DialogContent>

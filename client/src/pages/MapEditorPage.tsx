@@ -1,32 +1,93 @@
+import { useParams } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import Header from "@/components/Header";
 import MapEditor from "@/components/MapEditor";
 
-export default function MapEditorPage() {
-  // todo: remove mock functionality
-  const mockAvailablePOIs = [
-    { id: "1", name: "Magnus Ice Cream Shop", category: "Restaurants" },
-    { id: "2", name: "Castle Hotel, Autograph Collection", category: "Hotels" },
-    { id: "3", name: "Convention Center", category: "Convention Center" },
-    { id: "4", name: "Courtyard by Marriot I-Drive", category: "Hotels" },
-    { id: "5", name: "Days Inn by Wyndham", category: "Hotels" },
-    { id: "6", name: "Doubletree by Hilton", category: "Hotels" },
-    { id: "7", name: "Universal Studios", category: "Theme Parks" },
-    { id: "8", name: "SeaWorld", category: "Theme Parks" },
-  ];
+interface POI {
+  id: string;
+  name: string;
+  categoryId: string;
+  category: {
+    id: string;
+    name: string;
+    color: string;
+  };
+}
 
-  const mockPlacedPOIs = [
-    { id: "9", name: "Hyatt Regency Orlando", category: "Hotels", x: 45, y: 35 },
-    { id: "10", name: "Orange County Convention Center", category: "Convention Center", x: 60, y: 60 },
-  ];
+interface PlacedPOI {
+  id: string;
+  eventMapId: string;
+  poiId: string;
+  sectionId?: string;
+  x: number;
+  y: number;
+  poi: POI;
+}
+
+interface Basemap {
+  id: string;
+  name: string;
+  imageUrl: string;
+}
+
+export default function MapEditorPage() {
+  const { id } = useParams();
+
+  const { data: basemap } = useQuery<Basemap>({
+    queryKey: ['/api/basemaps', id],
+    queryFn: async () => {
+      const response = await fetch(`/api/basemaps/${id}`);
+      if (!response.ok) throw new Error('Failed to fetch basemap');
+      return response.json();
+    },
+    enabled: !!id,
+  });
+
+  const { data: allPOIs = [] } = useQuery<POI[]>({
+    queryKey: ['/api/pois'],
+  });
+
+  const { data: placedPOIs = [] } = useQuery<PlacedPOI[]>({
+    queryKey: ['/api/event-maps', id, 'placed-pois'],
+    queryFn: async () => {
+      return [];
+    },
+    enabled: !!id,
+  });
+
+  const availablePOIs = allPOIs.map(poi => ({
+    id: poi.id,
+    name: poi.name,
+    category: poi.category.name,
+  }));
+
+  const placedPOIsFormatted = placedPOIs.map(pp => ({
+    id: pp.poi.id,
+    name: pp.poi.name,
+    category: pp.poi.category.name,
+    x: pp.x,
+    y: pp.y,
+  }));
+
+  if (!basemap) {
+    return (
+      <>
+        <Header />
+        <div className="flex items-center justify-center h-screen">
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
       <Header />
       <MapEditor
-        basemapName="Orlando I-Drive Sample Map"
-        availablePOIs={mockAvailablePOIs}
-        placedPOIs={mockPlacedPOIs}
-        onSave={(pois) => console.log('Saved POIs:', pois)}
+        basemapName={basemap.name}
+        basemapImage={basemap.imageUrl}
+        availablePOIs={availablePOIs}
+        placedPOIs={placedPOIsFormatted}
       />
     </>
   );
