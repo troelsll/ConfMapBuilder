@@ -1,0 +1,249 @@
+🧭 Prompt for Replit AI
+
+Title: Conference Map Generator (Admin + POI Placement + PDF Export)
+
+Build a full-stack Replit project (monorepo) with these exact specifications.
+Output all code files completely — no TODOs, no placeholders, no summaries.
+
+💡 Goal
+
+Create a tool to generate custom maps for conferences.
+Users can:
+
+Upload base maps (static images, e.g., PNG/JPG).
+
+Define and manage Points of Interest (POIs) and categories.
+
+Place POIs on base maps visually (drag & drop).
+
+Create event maps by selecting a base map, adding/removing POIs, and exporting as PDF.
+
+Admins can add new maps, POIs, and categories.
+
+Users can search, edit, and download event maps.
+
+⚙️ Architecture
+
+Frontend: React + Vite + TypeScript
+
+State: Zustand
+
+UI: TailwindCSS
+
+Routing: react-router-dom
+
+Map placement: use a simple drag-and-drop overlay (absolute markers on background image)
+
+Icons: lucide-react
+
+Backend: Node.js (Express)
+
+ORM: Prisma + SQLite
+
+Uploads: Multer
+
+Image metadata: Sharp
+
+PDF generation: Puppeteer (server-side rendering of /print/map/:id)
+
+Template: EJS
+
+Auth: simple Bearer token check for admin routes
+
+File storage: Local /uploads and /exports folders (no cloud storage).
+
+Language: UI in English, variable names in lowerCamelCase.
+
+🧱 Database Schema (Prisma)
+model Basemap {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  imagePath   String
+  widthPx     Int
+  heightPx    Int
+  poiPlacements PoiPlacement[]
+  createdAt   DateTime @default(now())
+}
+
+model Category {
+  id    String @id @default(cuid())
+  name  String @unique
+  color String?
+  pois  POI[]
+}
+
+model POI {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  icon        String?
+  categoryId  String
+  category    Category  @relation(fields: [categoryId], references: [id])
+  placements  PoiPlacement[]
+}
+
+model PoiPlacement {
+  id        String  @id @default(cuid())
+  basemapId String
+  poiId     String
+  x         Float
+  y         Float
+  basemap   Basemap @relation(fields: [basemapId], references: [id])
+  poi       POI     @relation(fields: [poiId], references: [id])
+}
+
+model EventMap {
+  id        String   @id @default(cuid())
+  name      String
+  dateRange String
+  location  String
+  basemapId String
+  basemap   Basemap  @relation(fields: [basemapId], references: [id])
+  sections  Section[]
+  pdfPath   String?
+  createdAt DateTime  @default(now())
+}
+
+model Section {
+  id         String   @id @default(cuid())
+  title      String
+  eventMapId String
+  eventMap   EventMap @relation(fields: [eventMapId], references: [id])
+  items      SectionItem[]
+}
+
+model SectionItem {
+  id         String  @id @default(cuid())
+  sectionId  String
+  poiId      String
+  note       String?
+  section    Section @relation(fields: [sectionId], references: [id])
+  poi        POI     @relation(fields: [poiId], references: [id])
+}
+
+🔌 API Design (Express)
+
+POST /api/auth/test → check admin token
+
+/api/basemaps
+
+GET list/search
+
+POST (admin, multipart upload) add base map
+
+GET /:id with placements
+
+PUT /:id edit metadata
+
+POST /:id/placements replace all POI placements
+
+/api/categories
+
+GET list
+
+POST (admin) create
+
+/api/pois
+
+GET list + filters
+
+POST (admin) create
+
+/api/maps
+
+GET list/search
+
+POST create new event map
+
+GET /:id fetch details
+
+PUT /:id update map
+
+POST /:id/pdf (admin) generate and save PDF (using Puppeteer)
+
+Static:
+
+/uploads/* → serve uploaded images
+
+/exports/* → serve generated PDFs
+
+📦 Folder Structure
+/ (root)
+├─ package.json (workspaces: ["apps/server","apps/web"])
+├─ pnpm-workspace.yaml
+├─ .env.example
+├─ apps/
+│  ├─ server/
+│  │  ├─ src/
+│  │  │  ├─ index.ts
+│  │  │  ├─ routes/
+│  │  │  │  ├─ basemaps.ts
+│  │  │  │  ├─ pois.ts
+│  │  │  │  ├─ categories.ts
+│  │  │  │  ├─ maps.ts
+│  │  │  ├─ auth.ts
+│  │  │  ├─ upload.ts
+│  │  │  ├─ pdf.ts
+│  │  │  └─ views/print-map.ejs
+│  │  ├─ prisma/schema.prisma
+│  │  ├─ prisma/seed.ts
+│  │  ├─ public/uploads/
+│  │  └─ public/exports/
+│  └─ web/
+│     ├─ src/
+│     │  ├─ main.tsx
+│     │  ├─ App.tsx
+│     │  ├─ lib/api.ts
+│     │  ├─ store.ts
+│     │  ├─ pages/
+│     │  │  ├─ Dashboard.tsx
+│     │  │  ├─ Admin.tsx
+│     │  │  ├─ BasemapEditor.tsx
+│     │  │  ├─ CreateMap.tsx
+│     │  │  ├─ MapDetail.tsx
+│     │  │  └─ PrintMap.tsx
+│     ├─ index.html
+│     ├─ vite.config.ts
+│     ├─ tailwind.config.ts
+│     ├─ postcss.config.js
+│     └─ package.json
+
+🧪 Example Data (seed)
+
+Categories: Hotels, Restaurants, Entertainment, Shopping, Theme Parks, Convention Center, Carrie’s Faves
+
+Sample POIs under each category
+
+Sample basemap: “Orlando I-Drive (Sample)” with random placements
+
+Sample event map: “Gabe’s Conference Map (Jan 1–10, 2026, Orlando)”
+
+✅ Acceptance Criteria
+
+Uploading a basemap automatically detects its dimensions.
+
+Admin can CRUD categories and POIs.
+
+POIs can be dragged on a basemap and saved with relative coordinates (x,y ∈ [0..1]).
+
+Event maps can be created with sections and POIs.
+
+Generating a PDF creates a file in /exports using Puppeteer.
+
+Dashboard lists all event maps.
+
+Works out-of-the-box on Replit using:
+
+pnpm i
+pnpm run seed
+pnpm run dev
+
+
+Important:
+
+Output all files in full, including working code for both frontend and backend.
+
+No summaries or TODOs.
+
+Ensure the project runs directly in Replit with no extra setup.
