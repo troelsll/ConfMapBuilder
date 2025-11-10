@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Upload } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 interface UploadBasemapDialogProps {
@@ -33,9 +33,10 @@ export default function UploadBasemapDialog({ open, onOpenChange }: UploadBasema
       formData.append('width', dimensions.width.toString());
       formData.append('height', dimensions.height.toString());
 
-      const response = await apiRequest('/api/basemaps', {
+      const response = await fetch('/api/basemaps', {
         method: 'POST',
         body: formData,
+        credentials: 'include',
       });
       return response.json();
     },
