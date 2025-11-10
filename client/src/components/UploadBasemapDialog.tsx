@@ -38,6 +38,20 @@ export default function UploadBasemapDialog({ open, onOpenChange }: UploadBasema
         body: formData,
         credentials: 'include',
       });
+      if (!response.ok) {
+        // Try to surface server error message
+        let message = `${response.status}: ${response.statusText}`;
+        try {
+          const data = await response.json();
+          if (data?.error) message = data.error;
+        } catch {
+          try {
+            const text = await response.text();
+            if (text) message = text;
+          } catch {}
+        }
+        throw new Error(message);
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -48,10 +62,11 @@ export default function UploadBasemapDialog({ open, onOpenChange }: UploadBasema
       });
       handleClose();
     },
-    onError: () => {
+    onError: (error: unknown) => {
+      const description = error instanceof Error ? error.message : 'Failed to upload basemap';
       toast({
         title: 'Error',
-        description: 'Failed to upload basemap',
+        description,
         variant: 'destructive',
       });
     },
