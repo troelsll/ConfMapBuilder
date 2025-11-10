@@ -9,6 +9,8 @@ import { useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
+const API_BASE_URL = (import.meta as any)?.env?.VITE_API_BASE_URL || "";
+
 interface UploadBasemapDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -33,7 +35,7 @@ export default function UploadBasemapDialog({ open, onOpenChange }: UploadBasema
       formData.append('width', dimensions.width.toString());
       formData.append('height', dimensions.height.toString());
 
-      const response = await fetch('/api/basemaps', {
+      const response = await fetch(`${API_BASE_URL}/api/basemaps`, {
         method: 'POST',
         body: formData,
         credentials: 'include',
