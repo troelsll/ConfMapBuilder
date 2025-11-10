@@ -9,8 +9,6 @@ import { Search, Upload, Plus, Edit, Trash2, MapPin } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-
-const API_BASE_URL = (import.meta as any)?.env?.VITE_API_BASE_URL || "";
 import { useToast } from "@/hooks/use-toast";
 
 interface Basemap {
@@ -184,7 +182,7 @@ export default function AdminTabs({
                 <Card key={basemap.id} className="p-4" data-testid={`card-basemap-${basemap.id}`}>
                   <div className="flex gap-4">
                     <div className="w-24 h-24 bg-muted rounded-md flex-shrink-0 overflow-hidden">
-                      <img src={`${API_BASE_URL}${basemap.imageUrl}`} alt={basemap.name} className="w-full h-full object-cover" />
+                      <img src={basemap.imageUrl} alt={basemap.name} className="w-full h-full object-cover" />
                     </div>
                     <div className="flex-1">
                       <h3 className="font-semibold mb-1">{basemap.name}</h3>

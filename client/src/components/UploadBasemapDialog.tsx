@@ -6,10 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Upload } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
-import { queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-
-const API_BASE_URL = (import.meta as any)?.env?.VITE_API_BASE_URL || "";
 
 interface UploadBasemapDialogProps {
   open: boolean;
@@ -35,25 +33,10 @@ export default function UploadBasemapDialog({ open, onOpenChange }: UploadBasema
       formData.append('width', dimensions.width.toString());
       formData.append('height', dimensions.height.toString());
 
-      const response = await fetch(`${API_BASE_URL}/api/basemaps`, {
+      const response = await apiRequest('/api/basemaps', {
         method: 'POST',
         body: formData,
-        credentials: 'include',
       });
-      if (!response.ok) {
-        // Try to surface server error message
-        let message = `${response.status}: ${response.statusText}`;
-        try {
-          const data = await response.json();
-          if (data?.error) message = data.error;
-        } catch {
-          try {
-            const text = await response.text();
-            if (text) message = text;
-          } catch {}
-        }
-        throw new Error(message);
-      }
       return response.json();
     },
     onSuccess: () => {
@@ -64,11 +47,10 @@ export default function UploadBasemapDialog({ open, onOpenChange }: UploadBasema
       });
       handleClose();
     },
-    onError: (error: unknown) => {
-      const description = error instanceof Error ? error.message : 'Failed to upload basemap';
+    onError: () => {
       toast({
         title: 'Error',
-        description,
+        description: 'Failed to upload basemap',
         variant: 'destructive',
       });
     },
